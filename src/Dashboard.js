@@ -1,86 +1,114 @@
-import React, {useState} from 'react';
-import { makeStyles } from '@material-ui/core/styles';
-import {Button, TextField, Paper} from '@material-ui/core';
-import Typography from '@material-ui/core/Typography';
-import socket from 'socket.io-client';
-import { green } from '@material-ui/core/colors';
+import React, { useState, useEffect } from "react";
+import useStyles from "./styles";
+import {
+  Button,
+  TextField,
+  Paper,
+  Container,
+  IconButton,
+  Grid,
+} from "@material-ui/core";
+import Typography from "@material-ui/core/Typography";
+import IconSend from "@material-ui/icons/Send";
+import io from "socket.io-client";
+import MessageList from "./MessageList";
 
-const sockete = socket.connect("http://localhost:4001");
-
-const useStyles = makeStyles(theme => ({
-    root: {
-      padding: theme.spacing(3, 2),
-      margin: 50,
-      textAlign: 'center'
-    },
-    flex: {
-        display: 'flex',
-        flexDirection: 'column'
-    },
-    topicsWindow: {
-        width: '30%',
-        height: 300,
-        borderRight: '1px solid grey'
-    },
-    chatWindow: {
-        width: '70%',
-        maxHeight: 300,
-        backgroundColor: green
-    },
-    chatBox: {
-        width: '85%'
-    },
-    button: {
-        width: '15%'
-    },
-  }));
-
-  function handleClick(author, msg){
-      let obj = {
-          author: author,
-          msg: msg
-      }
-
-    sockete.emit("send msg", obj);
-  }
+const socket = io.connect("http://localhost:4001");
 
 export default function Dashboard() {
-    const classes = useStyles();
-    const [msgObj, setMsg] = useState(["ok test"]);
-    const [msg, setMessage] = useState();
-    const [author, setAuthor] = useState();
+  const classes = useStyles();
+  const [messages, setMessages] = useState([]);
+  const [message, setMessage] = useState("");
+  const [author, setAuthor] = useState("");
 
-    sockete.on("broad msg", (msg) => {
-        setMsg(msg);
-    })
+  function handleNewMessage(newMessage) {
+    const messageDate = new Date();
 
-    return(
-        <div>
-            <Paper className={classes.root}>
-                <Typography variant="h5" component="h3">
-                React Chat
-                </Typography>
-                <Typography component="p">
-                Topic Placeholder<br/>
-                <TextField 
-                    placeholder="Insira o nome do autor..."
-                    onChange={(evt) => setAuthor(evt.target.value)}
-                />
-                </Typography>
+    setMessages((prevState) => [
+      ...prevState,
+      {
+        ...newMessage,
+        date: messageDate.toLocaleTimeString(),
+      },
+    ]);
+  }
 
-                <div className={classes.flex}>
-                    <div className={classes.chatWindow}>
-                        {msgObj.map((i) => {
-                            return <div><strong>{i.author}</strong>{i.msg}<br/></div>
-                        })}
-                    </div>
-                </div>
-            </Paper>
-            <TextField 
-            placeholder="Insira sua mensagem aqui..."
-            onChange={(evt) => setMessage(evt.target.value)}
-            />
-            <Button onClick={() => handleClick(author, msg)}>ok</Button>
+  useEffect(() => {
+    socket.on("broad msg", (msg) => {
+      handleNewMessage(msg);
+    });
+    socket.on("connect_error", () => {
+      handleNewMessage({
+        author: "Sistema",
+        msg: "Ocorreu um erro ao se conectar com o serviço de Chat",
+      });
+    });
+
+    return () => {
+      socket.removeAllListeners();
+    };
+  }, []);
+
+  function handleChangeAuthor(evt) {
+    setAuthor(evt.target.value);
+  }
+  function handleChangeMessage(evt) {
+    setMessage(evt.target.value);
+  }
+
+  function handleClick() {
+    setMessage("");
+    setAuthor("");
+    socket.emit("send msg", {
+      author,
+      msg: message,
+    });
+  }
+
+  return (
+    <Paper elevation={0} className={classes.root}>
+      <Container className={classes.container}>
+        <Typography variant="h5" className={classes.title}>
+          React Chat
+        </Typography>
+
+        <MessageList messages={messages} />
+
+        <div className={classes.messageInputContainer}>
+          <Grid container spacing={2}>
+            <Grid item xs={10} sm={3}>
+              <TextField
+                fullWidth
+                variant="standard"
+                label="Seu Nome"
+                placeholder="Insira seu nome aqui..."
+                onChange={handleChangeAuthor}
+                className={classes.input}
+              />
+            </Grid>
+            <Grid item xs={10} sm={8}>
+              <TextField
+                fullWidth
+                variant="standard"
+                multiline
+                label="Sua Mensagem"
+                placeholder="Insira sua mensagem aqui..."
+                onChange={handleChangeMessage}
+                className={classes.input}
+              />
+            </Grid>
+            <Grid item xs={2} sm={1} className={classes.sendMessageButton}>
+              <IconButton
+                onClick={handleClick}
+                component="span"
+                color="primary"
+              >
+                <IconSend />
+              </IconButton>
+            </Grid>
+          </Grid>
         </div>
-    )
+      </Container>
+    </Paper>
+  );
 }
